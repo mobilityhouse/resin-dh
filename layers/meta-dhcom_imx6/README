@@ -1,0 +1,19 @@
+OpenEmbedded/Yocto BSP layer for DH electronics GmbH's DHCOM iMX6 module
+===========================================================
+
+This layer provides support for DH electronics's DHCOM iMX6 for
+use with OpenEmbedded and/or Yocto.
+
+This layer depends on:
+
+URI: https://git.yoctoproject.org/git/poky.git
+branch: krogoth
+
+URI: https://git.yoctoproject.org/git/meta-fsl-arm.git
+branch: krogoth
+
+URI: https://github.com/openembedded/meta-openembedded.git
+branch: krogoth
+
+URI: https://github.com/Freescale/fsl-community-bsp-base.git
+branch: krogoth

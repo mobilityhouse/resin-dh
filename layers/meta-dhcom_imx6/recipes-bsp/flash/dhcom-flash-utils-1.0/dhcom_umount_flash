@@ -1,0 +1,9 @@
+#!/bin/sh
+
+MOUNT_POINT="/mnt/flash"
+
+if [ -d ${MOUNT_POINT} ]
+then
+    umount ${MOUNT_POINT}
+    ubidetach -p /dev/mtd1
+fi

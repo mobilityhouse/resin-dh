@@ -1,0 +1,13 @@
+[Unit]
+Description=Resin network configure service
+Requires=mnt-boot.mount etc-NetworkManager-system\x2dconnections.mount
+After=mnt-boot.mount etc-NetworkManager-system\x2dconnections.mount
+
+[Service]
+ExecStart=@BASE_BINDIR@/bash @BINDIR@/resin-net-config
+Type=oneshot
+RemainAfterExit=yes
+StandardError=journal+console
+
+[Install]
+WantedBy=multi-user.target

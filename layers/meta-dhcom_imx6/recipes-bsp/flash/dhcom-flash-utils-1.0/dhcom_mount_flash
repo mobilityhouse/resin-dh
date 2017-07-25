@@ -1,0 +1,8 @@
+#!/bin/sh
+
+VOLUME_NAME="nand_rootfs"
+MOUNT_POINT="/mnt/flash"
+
+ubiattach -p /dev/mtd1
+mkdir -p ${MOUNT_POINT}
+mount -t ubifs ubi0:${VOLUME_NAME} ${MOUNT_POINT}

@@ -1,0 +1,39 @@
+diff --git a/plugins/input-raw.c b/plugins/input-raw.c
+index 10454da..10914a1 100644
+--- a/plugins/input-raw.c
++++ b/plugins/input-raw.c
+@@ -83,7 +83,12 @@ static int check_fd(struct tslib_input *i)
+ 		return -1;
+ 	}
+ 
+-	if (version < EV_VERSION) {
++/*
++PK: Next line is a dirty workaround for the problem of event versions uncompatibility.
++In short, In SDK header "/usr/include/linux/input.h" the EV_VERSION is defined as 0x010001,
++but the kernel driver returns 0x010000.
++*/
++	if (version < 0x010000) { // EV_VERSION
+ 		fprintf(stderr, "tslib: Selected device uses a different version of the event protocol than tslib was compiled for\n");
+ 		return -1;
+ 	}
+diff --git a/poky/configure.sh b/poky/configure.sh
+new file mode 100755
+index 0000000..8fbeaac
+--- /dev/null
++++ b/poky/configure.sh
+@@ -0,0 +1,15 @@
++#! /bin/bash
++# First we need to set the ENV accordingly to our poky SDK
++source /opt/poky/1.7/environment-setup-cortexa9hf-vfp-neon-poky-linux-gnueabi
++
++# Running the configure script for tslib
++../configure \
++CC=arm-poky-linux-gnueabi-gcc \
++CXX=arm-poky-linux-gnueabi-g++ \
++CFLAGS="-march=armv7-a -mthumb-interwork -mfloat-abi=hard -mfpu=neon -mtune=cortex-a9 -O2 -pipe -g -feliminate-unused-debug-types" \
++--host=i386-linux \
++--target=arm-linux \
++--prefix=$SDKTARGETSYSROOT/usr
++
++# to build do ~$make all
++# to install as superuser do source like in this file and then #make install

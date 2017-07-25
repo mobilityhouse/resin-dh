@@ -1,0 +1,12 @@
+[Unit]
+Description=Resin Hostname Configuration
+Requires=mnt-boot.mount resin-device-uuid.service etc-hostname.mount
+After=mnt-boot.mount resin-device-uuid.service etc-hostname.mount
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=@BINDIR@/resin-hostname
+
+[Install]
+WantedBy=multi-user.target

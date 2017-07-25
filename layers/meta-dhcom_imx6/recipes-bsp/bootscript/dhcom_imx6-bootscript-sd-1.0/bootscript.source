@@ -1,0 +1,6 @@
+setenv bootargs ${bootargs} vmalloc=400M root=/dev/mmcblk1p2 rw,rootwait consoleblank=0 video=mxcfb0:dev=hdmi,1280x720M@60,if=RGB24 video=mxcfb1:dev=lcd,CLAA-WVGA,if=RGB666 fbmem=28M,10M
+mmc dev 0
+for file_system in fat ext2; do
+    ${file_system}load mmc 0:1 ${loadaddr} /uImage && bootm ${loadaddr}
+done
+echo Impossible to boot from SD card partition 1

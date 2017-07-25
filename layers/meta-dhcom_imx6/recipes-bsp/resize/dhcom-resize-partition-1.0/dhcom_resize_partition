@@ -1,0 +1,243 @@
+#!/bin/sh
+
+DEVICE=""
+PARTITION_NUMBER=""
+INPUT_ERROR=""
+
+############################################################################
+# Helpers
+
+print_usage() {
+cat<<EOF
+
+ This utility resizes a given (extX) partition to fill the disk.
+ The partition must be the last one on the disk and must be primary.
+ A word of caution, this program could damage your filesystem, you must
+ know what you are doing here.
+
+
+ Usage: $0 [OPTIONS]
+
+ OPTIONS:
+
+ -h                  Print this help and exit.
+ -d /path/to/device  The device containing the partition to resize.
+ -p number           The partition number.
+
+EOF
+}
+
+############################################################################
+# Tools check
+
+UPDATE_EXISTS="yes"
+FILE_EXISTS="yes"
+
+command -v command > /dev/null 2>&1
+if [[ $? -ne 0 ]]
+then
+	UPDATE_EXISTS="no"
+	FILE_EXISTS="no"
+else
+	command -v update-rc.d > /dev/null 2>&1
+	if [[ $? -ne 0 ]]
+	then
+		UPDATE_EXISTS="no"
+	fi
+	command -v file > /dev/null 2>&1
+	if [[ $? -ne 0 ]]
+	then
+		FILE_EXISTS="no"
+	fi
+fi
+
+############################################################################
+# User privileges check
+
+USER=`whoami`
+if [ "$USER" != "root" ]
+then
+	echo "ERROR: You must be root to run this command."
+    echo "Aborting."
+	exit 1
+fi
+
+############################################################################
+# Options parsing
+
+while getopts hd:p: option
+do
+	case "$option" in
+		h)
+			print_usage $0
+			exit 0
+			;;
+		d)
+			DEVICE="$OPTARG"
+			;;
+		p)
+			PARTITION_NUMBER="$OPTARG"
+			;;
+		*)
+			print_usage $0
+			exit 1
+			;;
+	esac
+done
+
+############################################################################
+# Options sanity checks
+
+if [ -z "$DEVICE" ]
+then
+	echo "ERROR: Please, specify the device containing the partition to resize"
+	INPUT_ERROR="yes"
+elif [ ! -b $DEVICE ]
+then
+	echo "ERROR: The device must be a block device."
+	INPUT_ERROR="yes"
+fi
+
+if [ -z "$PARTITION_NUMBER" ]
+then
+	echo "ERROR: Please, speficy the partition number to resize"
+	INPUT_ERROR="yes"
+else
+	case $PARTITION_NUMBER in
+	''|*[!0-9]*)
+		echo "ERROR: The partition number must be a positive integer."
+		INPUT_ERROR="yes"
+		;;
+	*)
+		if [ $PARTITION_NUMBER -gt 4 -o $PARTITION_NUMBER -lt 1 ]
+		then
+			echo "ERROR: I can only work with partion numbers from 1 to 4."
+			INPUT_ERROR="yes"
+		fi
+		;;
+	esac
+fi
+
+if [ -n "$INPUT_ERROR" ]
+then
+	print_usage $0
+	exit 1
+fi
+
+if [ "${FILE_EXISTS}" == "yes" ]
+then
+	VALID_DEVICE=`file -s ${DEVICE} | grep -i boot`
+	if [ -z "${VALID_DEVICE}" ]
+	then
+	    echo "${DEVICE} is not a valid device."
+	    print_usage $0
+	    exit 1
+	fi
+fi
+
+PARTITION_LABEL=`fdisk ${DEVICE} -l | grep "^${DEVICE}" | cut -f 1 -d" " | grep "${PARTITION_NUMBER}$"`
+if [ -z "${PARTITION_LABEL}" ]
+then
+    echo "Impossible to determine the partition label."
+    print_usage $0
+    exit 1
+fi
+
+if [ "${FILE_EXISTS}" == "yes" ]
+then
+	VALID_PARTITION=`file -s ${PARTITION_LABEL} | grep -i filesystem | grep -i ext`
+	if [ -z "${VALID_PARTITION}" ]
+	then
+	    echo "${PARTITION_LABEL} is not a valid partition."
+	    print_usage $0
+	    exit 1
+	fi
+fi
+
+PARTITION_START_BLOCK=$(parted ${DEVICE} -ms unit s p | grep "^${PARTITION_NUMBER}" | cut -f 2 -d:)
+if [ -z "${PARTITION_START_BLOCK}" ]
+then
+	echo "ERROR: Impossible to determine the partition start block."
+	print_usage $0
+	exit 1
+fi
+
+############################################################################
+# Asking for confirmation
+
+cat<<EOF
+
+ WARNING:
+ The execution of this program will change the partitions table and the
+ filesystem size. If an error occours you may loose your data!
+ A reboot will be necessary to complete the changes.
+
+EOF
+read -p "Are you sure you want to continue? [yN]: "
+if [ "${REPLY}" != "y" -a "${REPLY}" != "Y" ]
+then
+	echo "Aborting."
+	exit 1
+fi
+
+############################################################################
+# Resizing partition
+
+fdisk ${DEVICE} <<EOF
+d
+${PARTITION_NUMBER}
+n
+p
+${PARTITION_NUMBER}
+${PARTITION_START_BLOCK}
+
+w
+EOF
+
+############################################################################
+# Filesystem resize
+
+if [ "$UPDATE_EXISTS" == "yes" ]
+then
+
+cat <<\EOF > /etc/init.d/do_resize &&
+#!/bin/sh
+### BEGIN INIT INFO
+# Provides: do_resize
+# Required-Start:
+# Required-Stop:
+# Default-Start: 2 3 4 5 S
+# Default-Stop:
+# Short-Description: Resize a partition to fill the disk
+# Description:
+### END INIT INFO
+
+case "$1" in
+    start)
+        echo "Resizing @PARTITION_LABEL@, this will take a while..."
+        resize2fs @PARTITION_LABEL@
+        rm /etc/init.d/do_resize
+        update-rc.d do_resize remove
+        ;;
+    *)
+        echo "Usage: $0 start" >&2
+        exit 3
+        ;;
+esac
+EOF
+
+	sed -i "s|@PARTITION_LABEL@|${PARTITION_LABEL}|g" /etc/init.d/do_resize
+
+	chmod +x /etc/init.d/do_resize
+	update-rc.d do_resize defaults
+
+else
+
+	echo ""
+	echo " After the reboot you should run the following command:"
+	echo " resize2fs ${PARTITION_LABEL}"
+	echo ""
+	read -p "Press any key to continue"
+fi
+
+reboot

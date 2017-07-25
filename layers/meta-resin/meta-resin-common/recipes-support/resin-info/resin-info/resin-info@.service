@@ -1,0 +1,11 @@
+[Unit]
+Description=Resin info on %I
+After=resin-supervisor.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=@BASE_BINDIR@/bash @SBINDIR@/resin-info %I
+
+[Install]
+WantedBy=resin.target

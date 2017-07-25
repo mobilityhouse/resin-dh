@@ -1,0 +1,213 @@
+diff -uBNr fbset-2.1_orig/fb.modes.5 fbset-2.1/fb.modes.5
+--- fbset-2.1_orig/fb.modes.5	1999-01-17 20:15:47.000000000 +0100
++++ fbset-2.1/fb.modes.5	2016-07-20 15:15:49.367047763 +0200
+@@ -93,6 +93,9 @@
+ instead. Note that this option may not be supported by every frame buffer
+ device
+ .TP
++.IR \fBsync "\ <" number >
++custom sync flags (frame buffer driver dependent)
++.TP
+ .IR \fBlaced "\ {" false | true }
+ enable or disable interlace. If enabled the display will be split in two
+ frames, each frame contains only even and odd lines respectively. These two
+diff -uBNr fbset-2.1_orig/fbset.8 fbset-2.1/fbset.8
+--- fbset-2.1_orig/fbset.8	1999-06-23 16:09:48.000000000 +0200
++++ fbset-2.1/fbset.8	2016-07-20 15:15:49.367047763 +0200
+@@ -176,6 +176,10 @@
+ instead. Note that this option may not be supported by every frame buffer
+ device
+ .TP
++.IR \fB\-sync "\ <" \fIvalue >
++set custom sync flags. If specified, this value is bitwise or-ed to the
++other sync flags. This is useful for drivers that use custom sync flags
++.TP
+ .IR \fB\-bcast "\ {" false | true }
+ enable or disable broadcast modes. If enabled the frame buffer generates the
+ exact timings for several broadcast modes (e.g. PAL or NTSC). Note that
+diff -uBNr fbset-2.1_orig/fbset.c fbset-2.1/fbset.c
+--- fbset-2.1_orig/fbset.c	1999-06-23 16:11:46.000000000 +0200
++++ fbset-2.1/fbset.c	2016-07-20 15:28:50.227065976 +0200
+@@ -52,6 +52,12 @@
+ 
+ 
+     /*
++     *  Mask to zero-out all known sync flags
++     */
++#define FB_CUSTOM_SYNC_MASK ~(FB_SYNC_HOR_HIGH_ACT|FB_SYNC_VERT_HIGH_ACT| \
++    FB_SYNC_COMP_HIGH_ACT|FB_SYNC_ON_GREEN|FB_SYNC_EXT|FB_SYNC_BROADCAST)
++
++    /*
+      *  Command Line Options
+      */
+ 
+@@ -86,6 +92,7 @@
+ static const char *Opt_csync = NULL;
+ static const char *Opt_gsync = NULL;
+ static const char *Opt_extsync = NULL;
++static const char *Opt_sync = NULL;
+ static const char *Opt_bcast = NULL;
+ static const char *Opt_laced = NULL;
+ static const char *Opt_double = NULL;
+@@ -123,6 +130,7 @@
+     { "-csync", &Opt_csync, 1 },
+     { "-gsync", &Opt_gsync, 1 },
+     { "-extsync", &Opt_extsync, 1 },
++    { "-sync", &Opt_sync, 1 },
+     { "-bcast", &Opt_bcast, 1 },
+     { "-laced", &Opt_laced, 1 },
+     { "-double", &Opt_double, 1 },
+@@ -348,6 +356,7 @@
+ 	var->sync |= FB_SYNC_EXT;
+     if (vmode->bcast == TRUE)
+ 	var->sync |= FB_SYNC_BROADCAST;
++    var->sync |= vmode->sync;
+     if (vmode->laced == TRUE)
+ 	var->vmode = FB_VMODE_INTERLACED;
+     else if (vmode->dblscan == TRUE)
+@@ -391,6 +400,7 @@
+     vmode->gsync = var->sync & FB_SYNC_ON_GREEN ? TRUE : FALSE;
+     vmode->extsync = var->sync & FB_SYNC_EXT ? TRUE : FALSE;
+     vmode->bcast = var->sync & FB_SYNC_BROADCAST ? TRUE : FALSE;
++    vmode->sync = var->sync & FB_CUSTOM_SYNC_MASK;
+     vmode->grayscale = var->grayscale;
+     vmode->laced = FALSE;
+     vmode->dblscan = FALSE;
+@@ -500,6 +510,27 @@
+ }
+ 
+     /*
++     *  Take known bits from sync and set appropriate flags instead
++     */
++
++void fixCustomSync(struct VideoMode *vmode)
++{
++    if (vmode->sync & FB_SYNC_HOR_HIGH_ACT)
++	vmode->hsync = 1;
++    if (vmode->sync & FB_SYNC_VERT_HIGH_ACT)
++	vmode->vsync = 1;
++    if (vmode->sync & FB_SYNC_COMP_HIGH_ACT)
++	vmode->csync = 1;
++    if (vmode->sync & FB_SYNC_ON_GREEN)
++	vmode->gsync = 1;
++    if (vmode->sync & FB_SYNC_EXT)
++	vmode->extsync =1;
++    if (vmode->sync & FB_SYNC_BROADCAST)
++	vmode->bcast = 1;
++    vmode->sync &= FB_CUSTOM_SYNC_MASK;
++}
++
++    /*
+      *  Find a Video Mode
+      */
+ 
+@@ -563,6 +594,12 @@
+ 	vmode->extsync = atoboolean(Opt_extsync);
+     if (Opt_bcast)
+ 	vmode->bcast = atoboolean(Opt_bcast);
++    if (Opt_sync)
++    {
++	vmode->sync = strtoul(Opt_sync, NULL, 0);
++	// call this only once all the other sync fields are determined!
++	fixCustomSync(vmode);
++    }
+     if (Opt_laced)
+ 	vmode->laced = atoboolean(Opt_laced);
+     if (Opt_double)
+@@ -639,6 +676,8 @@
+ 	    puts("    extsync true");
+ 	if (vmode->bcast)
+ 	    puts("    bcast true");
++	if (vmode->sync)
++	    printf("    sync 0x%x\n", vmode->sync);
+ 	if (vmode->laced)
+ 	    puts("    laced true");
+ 	if (vmode->dblscan)
+@@ -691,6 +730,8 @@
+ 	    puts("    # Warning: XFree86 doesn't support extsync\n");
+ 	if (vmode->bcast)
+ 	    printf(" \"bcast\"");
++	if (vmode->sync)
++	    puts("    # Warning: XFree86 doesn't support custom sync values\n");
+ 	if (vmode->accel_flags)
+ 	    puts("    # Warning: XFree86 doesn't support accel\n");
+ 	if (vmode->grayscale)
+@@ -876,6 +917,7 @@
+ 	"    -csync <value>     : composite sync polarity (low or high)\n"
+ 	"    -gsync <value>     : synch on green (false or true)\n"
+ 	"    -extsync <value>   : external sync enable (false or true)\n"
++	"    -sync <value>      : custom (driver specific) sync value\n"
+ 	"    -bcast <value>     : broadcast enable (false or true)\n"
+ 	"    -laced <value>     : interlace enable (false or true)\n"
+ 	"    -double <value>    : doublescan enable (false or true)\n"
+diff -uBNr fbset-2.1_orig/fbset.h fbset-2.1/fbset.h
+--- fbset-2.1_orig/fbset.h	1999-06-23 16:12:28.000000000 +0200
++++ fbset-2.1/fbset.h	2016-07-20 15:15:49.367047763 +0200
+@@ -64,6 +64,8 @@
+     unsigned laced : 1;
+     unsigned dblscan : 1;
+     unsigned grayscale : 1;
++    /* extra (fb driver specific) sync bits */
++    __u32 sync;
+     /* scanrates */
+     double drate;
+     double hrate;
+@@ -80,3 +82,4 @@
+ extern void Die(const char *fmt, ...) __attribute__ ((noreturn));
+ extern void AddVideoMode(const struct VideoMode *vmode);
+ extern void makeRGBA(struct VideoMode *vmode, const char* opt);
++extern void fixCustomSync(struct VideoMode *vmode);
+diff -uBNr fbset-2.1_orig/modes.l fbset-2.1/modes.l
+--- fbset-2.1_orig/modes.l	1999-06-23 16:09:48.000000000 +0200
++++ fbset-2.1/modes.l	2016-07-20 15:17:46.887050504 +0200
+@@ -38,6 +38,7 @@
+     { "csync", CSYNC, 0 },
+     { "gsync", GSYNC, 0 },
+     { "extsync", EXTSYNC, 0 },
++    { "sync", SYNC, 0 },
+     { "bcast", BCAST, 0 },
+     { "laced", LACED, 0 },
+     { "double", DOUBLE, 0 },
+@@ -98,7 +99,7 @@
+ %}
+ 
+ keyword	[a-zA-Z][a-zA-Z0-9]*
+-number	[0-9]*
++number	(0x)?[0-9]*
+ string	\"[^\"\n]*\"
+ comment	\#([^\n]*)
+ space	[ \t]+
+diff -uBNr fbset-2.1_orig/modes.y fbset-2.1/modes.y
+--- fbset-2.1_orig/modes.y	1999-06-23 16:09:48.000000000 +0200
++++ fbset-2.1/modes.y	2016-07-20 15:15:49.371047763 +0200
+@@ -40,7 +40,7 @@
+ 
+ %start file
+ 
+-%token MODE GEOMETRY TIMINGS HSYNC VSYNC CSYNC GSYNC EXTSYNC BCAST LACED DOUBLE
++%token MODE GEOMETRY TIMINGS HSYNC VSYNC CSYNC GSYNC EXTSYNC SYNC BCAST LACED DOUBLE
+        RGBA NONSTD ACCEL GRAYSCALE
+        ENDMODE POLARITY BOOLEAN STRING NUMBER 
+ 
+@@ -91,6 +91,7 @@
+ 	  | options csync
+ 	  | options gsync
+ 	  | options extsync
++	  | options sync
+ 	  | options bcast
+ 	  | options laced
+ 	  | options double
+@@ -130,6 +131,13 @@
+ 	    }
+ 	  ;
+ 
++sync: SYNC NUMBER
++	    {
++		VideoMode.sync = $2;
++		fixCustomSync(&VideoMode);
++	    }
++	  ;
++
+ bcast	  : BCAST BOOLEAN
+ 	    {
+ 		VideoMode.bcast = $2;

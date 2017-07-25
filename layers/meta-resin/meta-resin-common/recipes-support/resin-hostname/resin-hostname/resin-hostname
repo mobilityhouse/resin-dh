@@ -1,0 +1,22 @@
+#!/bin/sh
+
+set -e
+
+. /usr/sbin/resin-vars
+
+if [ -z "$CONFIG_HOSTNAME" ]; then
+    # take just the first 7 characters
+    CONFIG_HOSTNAME=$(echo "$UUID" | sed -e 's/\(.......\).*/\1/')
+fi
+
+if [ -z "$CONFIG_HOSTNAME" ]; then
+    echo "[ERROR]: Unexpected uuid missing from config.json."
+    exit 1
+fi
+
+# Set hostname temporary hostname
+hostname "$CONFIG_HOSTNAME"
+# Commit hostname
+echo "$CONFIG_HOSTNAME" > /etc/hostname
+
+exit 0

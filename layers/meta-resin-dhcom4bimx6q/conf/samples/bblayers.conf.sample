@@ -1,0 +1,34 @@
+# LAYER_CONF_VERSION is increased each time build/conf/bblayers.conf
+# changes incompatibly
+POKY_BBLAYERS_CONF_VERSION = "2"
+
+
+BBPATH = "${TOPDIR}"
+BSPDIR := "${@os.path.abspath(os.path.dirname(d.getVar('FILE', True)) + '/../..')}"
+BBFILES = ""
+
+
+BBLAYERS = " \
+    ${TOPDIR}/../layers/poky/meta \
+    ${TOPDIR}/../layers/poky/meta-poky \
+    ${TOPDIR}/../layers/meta-openembedded/meta-oe \
+    ${TOPDIR}/../layers/meta-openembedded/meta-systemd \ 
+    ${TOPDIR}/../layers/meta-openembedded/meta-filesystems \
+    ${TOPDIR}/../layers/meta-openembedded/meta-networking \
+    ${TOPDIR}/../layers/meta-openembedded/meta-python \
+    ${TOPDIR}/../layers/meta-openembedded/meta-multimedia \
+    ${TOPDIR}/../layers/meta-fsl-arm \
+    ${TOPDIR}/../layers/meta-fsl-arm-extra \
+    ${TOPDIR}/../layers/meta-dhcom_imx6 \
+    ${TOPDIR}/../layers/meta-resin/meta-resin-common \
+    ${TOPDIR}/../layers/meta-resin/meta-resin-krogoth \
+    ${TOPDIR}/../layers/meta-resin-dhcom4bimx6q \
+    ${TOPDIR}/../layers/oe-meta-go \
+    "
+
+BBLAYERS_NON_REMOVABLE = " \
+    ${TOPDIR}/../layers/poky/meta \
+    ${TOPDIR}/../layers/poky/meta-poky \
+    ${TOPDIR}/../layers/meta-resin/meta-resin-common \
+    ${TOPDIR}/../layers/meta-resin/meta-resin-krogoth \
+    "

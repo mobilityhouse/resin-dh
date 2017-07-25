@@ -1,0 +1,34 @@
+#!/bin/sh
+#
+# copy over NetworkManager configuration files and set proper
+# permissions.
+#
+
+set -e
+
+. /usr/sbin/resin-vars
+
+if [ ! -f "$CONFIG_PATH" ]; then
+	echo "resin-net-config: $CONFIG_PATH does not exist."
+	exit 1
+else
+	echo "resin-net-config: Found config.json in $CONFIG_PATH ."
+fi
+
+CONFIG_NM=${CONFIG_PATH%/*}/system-connections/
+cp -r "$CONFIG_NM" /etc/NetworkManager/
+chmod 600 /etc/NetworkManager/system-connections/*
+
+# set the wifi regulatory domain; keep the devices default if unset
+if [ ! -z "$COUNTRY" ]; then
+	iw reg set "$COUNTRY"
+fi
+
+# add additional DNS servers to dnsmasq configuration
+DNS_SERVER_FILE=/run/dnsmasq.servers
+echo > $DNS_SERVER_FILE
+for dns in $DNS_SERVERS; do
+	echo "server=$dns" >> $DNS_SERVER_FILE
+done
+
+exit 0
